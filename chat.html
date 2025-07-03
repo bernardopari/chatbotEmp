@@ -1,0 +1,914 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AlmacénBot - Consulta tu Inventario</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .header {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 15px 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .header h1 {
+            color: #333;
+            font-size: 1.5rem;
+            font-weight: 600;
+        }
+
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: #28a745;
+            font-size: 0.9rem;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            background: #28a745;
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+
+        .chat-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            max-width: 800px;
+            margin: 0 auto;
+            width: 100%;
+            background: white;
+            border-radius: 15px 15px 0 0;
+            overflow: hidden;
+            margin-top: 49px;
+        }
+
+        .chat-messages {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+            background: #f8f9fa;
+            scroll-behavior: smooth;
+        }
+
+        .message {
+            margin-bottom: 15px;
+            display: flex;
+            align-items: flex-end;
+            gap: 10px;
+        }
+
+        .message.user {
+            justify-content: flex-end;
+        }
+
+        .message.bot {
+            justify-content: flex-start;
+        }
+
+        .message-bubble {
+            max-width: 80%;
+            padding: 12px 18px;
+            border-radius: 20px;
+            font-size: 0.95rem;
+            line-height: 1.4;
+            word-wrap: break-word;
+        }
+
+        .message.user .message-bubble {
+            background: #007bff;
+            color: white;
+            border-bottom-right-radius: 5px;
+        }
+
+        .message.bot .message-bubble {
+            background: white;
+            color: #333;
+            border: 1px solid #e9ecef;
+            border-bottom-left-radius: 5px;
+        }
+
+        .bot-avatar {
+            width: 35px;
+            height: 35px;
+            background: #28a745;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            font-size: 0.9rem;
+        }
+
+        .chat-input-container {
+            padding: 15px 20px;
+            background: white;
+            border-top: 1px solid #e9ecef;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .chat-input {
+            flex: 1;
+            padding: 12px 18px;
+            border: 1px solid #ddd;
+            border-radius: 25px;
+            font-size: 1rem;
+            outline: none;
+            transition: border-color 0.3s;
+        }
+
+        .chat-input:focus {
+            border-color: #007bff;
+        }
+
+        .send-btn {
+            background: #007bff;
+            color: white;
+            border: none;
+            width: 45px;
+            height: 45px;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 1.2rem;
+            transition: background 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .send-btn:hover {
+            background: #0056b3;
+        }
+
+        .send-btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
+        .file-upload-container {
+            margin-bottom: 15px;
+             margin-top: 15px;
+            text-align: center;
+        }
+
+        .file-upload-btn {
+            background: #28a745;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            transition: background 0.3s;
+        }
+
+        .file-upload-btn:hover {
+            background: #218838;
+        }
+
+        .file-input {
+            display: none;
+        }
+
+        .quick-actions {
+            padding: 15px 20px;
+            background: #f8f9fa;
+            border-top: 1px solid #e9ecef;
+            display: flex;
+            gap: 10px;
+            overflow-x: auto;
+        }
+
+        .quick-btn {
+            background: white;
+            border: 1px solid #ddd;
+            padding: 8px 16px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            white-space: nowrap;
+            transition: all 0.3s;
+        }
+
+        .quick-btn:hover {
+            background: #007bff;
+            color: white;
+            border-color: #007bff;
+        }
+
+        .typing-indicator {
+            display: none;
+            align-items: center;
+            gap: 8px;
+            color: #666;
+            font-style: italic;
+            margin-bottom: 15px;
+        }
+
+        .typing-dots {
+            display: flex;
+            gap: 3px;
+        }
+
+        .typing-dot {
+            width: 6px;
+            height: 6px;
+            background: #666;
+            border-radius: 50%;
+            animation: typing 1.4s infinite;
+        }
+
+        .typing-dot:nth-child(2) {
+            animation-delay: 0.2s;
+        }
+
+        .typing-dot:nth-child(3) {
+            animation-delay: 0.4s;
+        }
+
+        @keyframes typing {
+            0%, 60%, 100% { opacity: 0.3; }
+            30% { opacity: 1; }
+        }
+
+        .product-card {
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 10px;
+            padding: 12px;
+            margin: 8px 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .product-info {
+            flex: 1;
+        }
+
+        .product-name {
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 4px;
+        }
+
+        .product-details {
+            font-size: 0.85rem;
+            color: #666;
+        }
+
+        .product-stock {
+            font-weight: bold;
+            color: #28a745;
+            font-size: 1.1rem;
+        }
+
+        .low-stock {
+            color: #dc3545;
+        }
+
+        @media (max-width: 768px) {
+            .header h1 {
+                font-size: 1.2rem;
+            }
+            
+            .message-bubble {
+                max-width: 90%;
+                font-size: 0.9rem;
+            }
+            
+            .quick-actions {
+                padding: 10px 15px;
+            }
+            
+            .quick-btn {
+                font-size: 0.8rem;
+                padding: 6px 12px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🏪 AlmacénBot</h1>
+        <div class="status-indicator">
+            <div class="status-dot"></div>
+            <span id="statusText">Listo</span>
+        </div>
+    </div>
+
+    <div class="chat-container">
+        <div class="file-upload-container">
+            <input type="file" id="excelFile" class="file-input" accept=".xlsx,.xls" />
+            <button class="file-upload-btn" onclick="document.getElementById('excelFile').click()">
+                📁 Cargar Inventario (Excel)
+            </button>
+            <div style="margin-top: 10px;">
+                <input type="text" id="groqApiKey" placeholder="Groq API Key (opcional)" style="padding: 8px; border: 1px solid #ddd; border-radius: 15px; width: 200px; font-size: 0.85rem;">
+                <button onclick="saveApiKey()" style="background: #6c757d; color: white; border: none; padding: 8px 12px; border-radius: 15px; margin-left: 5px; cursor: pointer; font-size: 0.85rem;">Guardar</button>
+            </div>
+            <div id="aiStatus" style="margin-top: 5px; font-size: 0.8rem; color: #666;">Modo: Simulador JavaScript</div>
+        </div>
+
+        <div class="chat-messages" id="chatMessages">
+            <div class="message bot">
+                <div class="bot-avatar">🤖</div>
+                <div class="message-bubble">
+                    ¡Hola! Soy tu asistente de inventario. 
+                    <br><br>
+                    <strong>📋 Ejemplos de consultas:</strong>
+                    <br>• "¿Tengo gaseosas?"
+                    <br>• "¿Cuánto por 50 unidades de arroz?"
+                    <br>• "¿Qué productos ingresaron hoy?"
+                    <br>• "Calcula 100 unidades con 15% descuento"
+                </div>
+            </div>
+        </div>
+
+        <div class="typing-indicator" id="typingIndicator">
+            <div class="bot-avatar">🤖</div>
+            <div class="typing-dots">
+                <div class="typing-dot"></div>
+                <div class="typing-dot"></div>
+                <div class="typing-dot"></div>
+            </div>
+            <span>Consultando inventario...</span>
+        </div>
+
+        <div class="quick-actions">
+            <div class="quick-btn" onclick="sendQuickMessage('¿Qué productos tengo?')">📦 Ver productos</div>
+            <div class="quick-btn" onclick="sendQuickMessage('¿Qué productos están bajos?')">⚠️ Stock bajo</div>
+            <div class="quick-btn" onclick="sendQuickMessage('¿Qué ingresó hoy?')">📅 Ingresos hoy</div>
+            <div class="quick-btn" onclick="sendQuickMessage('Resumen del inventario')">📊 Resumen</div>
+        </div>
+
+        <div class="chat-input-container">
+            <input type="text" id="chatInput" class="chat-input" placeholder="Escribe tu consulta..." />
+            <button id="sendBtn" class="send-btn" onclick="sendMessage()">
+                ➤
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // Configuración de IA
+        let groqApiKey = '';
+        let useAI = true;
+        const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions';
+
+        // Datos simulados del inventario
+        let inventoryData = [
+            {
+                producto: "Gaseosa 500ml",
+                categoria: "Bebidas",
+                cantidad: 120,
+                fecha_ingreso: "2025-07-01",
+                precio_unitario: 1.20,
+                precio_mayor: 1.00
+            },
+            {
+                producto: "Papel higiénico x4",
+                categoria: "Aseo",
+                cantidad: 90,
+                fecha_ingreso: "2025-06-28",
+                precio_unitario: 2.50,
+                precio_mayor: 2.20
+            },
+            {
+                producto: "Arroz 1kg",
+                categoria: "Alimentos",
+                cantidad: 150,
+                fecha_ingreso: "2025-06-30",
+                precio_unitario: 3.00,
+                precio_mayor: 2.80
+            },
+            {
+                producto: "Detergente en polvo",
+                categoria: "Aseo",
+                cantidad: 25,
+                fecha_ingreso: "2025-07-02",
+                precio_unitario: 4.50,
+                precio_mayor: 4.00
+            },
+            {
+                producto: "Aceite 1L",
+                categoria: "Alimentos",
+                cantidad: 80,
+                fecha_ingreso: "2025-06-29",
+                precio_unitario: 5.20,
+                precio_mayor: 4.80
+            },
+            {
+                producto: "Leche 1L",
+                categoria: "Bebidas",
+                cantidad: 15,
+                fecha_ingreso: "2025-07-03",
+                precio_unitario: 2.80,
+                precio_mayor: 2.50
+            }
+        ];
+
+        // Inicialización
+        document.addEventListener('DOMContentLoaded', function() {
+            document.getElementById('chatInput').addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    sendMessage();
+                }
+            });
+
+            document.getElementById('excelFile').addEventListener('change', handleFileUpload);
+            
+            // Cargar API key guardada
+            const savedApiKey = localStorage.getItem('groqApiKey');
+            if (savedApiKey) {
+                document.getElementById('groqApiKey').value = savedApiKey;
+                groqApiKey = savedApiKey;
+                useAI = true;
+                updateAIStatus();
+            }
+        });
+
+        // Gestión de API Key
+        function saveApiKey() {
+            const apiKey = document.getElementById('groqApiKey').value.trim();
+            if (apiKey) {
+                groqApiKey = apiKey;
+                localStorage.setItem('groqApiKey', apiKey);
+                useAI = true;
+                updateAIStatus();
+                addBotMessage('✅ API Key de Groq guardada. Ahora usaré IA real para responder.');
+            } else {
+                groqApiKey = '';
+                localStorage.removeItem('groqApiKey');
+                useAI = false;
+                updateAIStatus();
+                addBotMessage('ℹ️ API Key removida. Volviendo al modo simulador.');
+            }
+        }
+
+        function updateAIStatus() {
+            const statusEl = document.getElementById('aiStatus');
+            if (useAI) {
+                statusEl.textContent = 'Modo: Groq AI ✨';
+                statusEl.style.color = '#28a745';
+            } else {
+                statusEl.textContent = 'Modo: Simulador JavaScript';
+                statusEl.style.color = '#666';
+            }
+        }
+
+        // Manejo de carga de archivo Excel
+        function handleFileUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+                    const jsonData = XLSX.utils.sheet_to_json(worksheet);
+                    
+                    // Normalizar datos
+                    inventoryData = jsonData.map(item => ({
+                        producto: item.Producto || item.producto || '',
+                        categoria: item.Categoria || item.categoria || '',
+                        cantidad: parseInt(item.Cantidad || item.cantidad || 0),
+                        fecha_ingreso: item['Fecha Ingreso'] || item.fecha_ingreso || '',
+                        precio_unitario: parseFloat(item['Precio Unitario'] || item.precio_unitario || 0),
+                        precio_mayor: parseFloat(item['Precio Mayor'] || item.precio_mayor || 0)
+                    }));
+
+                    addBotMessage(`✅ Archivo cargado exitosamente. ${inventoryData.length} productos en el inventario.`);
+                    updateStatus('Inventario cargado');
+                } catch (error) {
+                    addBotMessage('❌ Error al cargar el archivo. Verifica que sea un archivo Excel válido.');
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        // Enviar mensaje
+        function sendMessage() {
+            const input = document.getElementById('chatInput');
+            const message = input.value.trim();
+            
+            if (!message) return;
+
+            addUserMessage(message);
+            input.value = '';
+            
+            // Simular procesamiento
+            showTypingIndicator();
+            setTimeout(async () => {
+                hideTypingIndicator();
+                await processMessage(message);
+            }, 1000 + Math.random() * 1000);
+        }
+
+        function sendQuickMessage(message) {
+            document.getElementById('chatInput').value = message;
+            sendMessage();
+        }
+
+        // Agregar mensajes al chat
+        function addUserMessage(message) {
+            const chatMessages = document.getElementById('chatMessages');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'message user';
+            messageDiv.innerHTML = `
+                <div class="message-bubble">${message}</div>
+            `;
+            chatMessages.appendChild(messageDiv);
+            scrollToBottom();
+        }
+
+        function addBotMessage(message) {
+            const chatMessages = document.getElementById('chatMessages');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'message bot';
+            messageDiv.innerHTML = `
+                <div class="bot-avatar">🤖</div>
+                <div class="message-bubble">${message}</div>
+            `;
+            chatMessages.appendChild(messageDiv);
+            scrollToBottom();
+        }
+
+        // Procesamiento de mensajes
+        async function processMessage(message) {
+            if (useAI && groqApiKey) {
+                await processMessageWithAI(message);
+            } else {
+                processMessageSimulated(message);
+            }
+        }
+
+        // Procesamiento con IA (Groq)
+        async function processMessageWithAI(message) {
+            try {
+                const inventoryContext = prepareInventoryContext();
+                const systemPrompt = createSystemPrompt(inventoryContext);
+                
+                const response = await fetch(GROQ_API_URL, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${groqApiKey}`
+                    },
+                    body: JSON.stringify({
+                        model: 'llama3-8b-8192',
+                        messages: [
+                            {
+                                role: 'system',
+                                content: systemPrompt
+                            },
+                            {
+                                role: 'user',
+                                content: message
+                            }
+                        ],
+                        temperature: 0.7,
+                        max_tokens: 1000
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Error ${response.status}: ${response.statusText}`);
+                }
+
+                const data = await response.json();
+                const aiResponse = data.choices[0].message.content;
+                
+                // Procesar respuesta de IA y agregar tarjetas de productos si es necesario
+                const processedResponse = processAIResponse(aiResponse, message);
+                addBotMessage(processedResponse);
+                
+            } catch (error) {
+                console.error('Error con Groq API:', error);
+                addBotMessage(`❌ Error con la IA: ${error.message}. Usando modo simulador...`);
+                processMessageSimulated(message);
+            }
+        }
+
+        // Preparar contexto del inventario para la IA
+        function prepareInventoryContext() {
+            return inventoryData.map(item => ({
+                producto: item.producto,
+                categoria: item.categoria,
+                cantidad: item.cantidad,
+                fecha_ingreso: item.fecha_ingreso,
+                precio_unitario: item.precio_unitario,
+                precio_mayor: item.precio_mayor || item.precio_unitario * 0.9
+            }));
+        }
+
+        // Crear prompt del sistema
+        function createSystemPrompt(inventoryData) {
+            return `
+Eres un asistente de inventario para una tienda mayorista. Tu nombre es AlmacénBot.
+
+INVENTARIO ACTUAL:
+${JSON.stringify(inventoryData, null, 2)}
+
+INSTRUCCIONES:
+1. Responde consultas sobre stock, precios, productos y cálculos
+2. Usa un tono amigable y profesional
+3. Para productos con menos de 30 unidades, menciona que tienen "stock bajo"
+4. Para cantidades de 50+ unidades, aplica precio mayorista
+5. Calcula descuentos cuando se soliciten
+6. Proporciona información específica y útil
+7. Si no encuentras un producto, sugiere productos similares
+8. Incluye emojis relevantes para hacer las respuestas más amigables
+9. Mantén las respuestas concisas pero informativas
+
+FORMATO DE RESPUESTA:
+- Usa HTML básico para formato (negrita, saltos de línea)
+- Para mostrar productos, usa el formato: "• Producto (cantidad unidades) - Categoría"
+- Para precios, usa formato: "S/ XX.XX"
+- Para fechas, usa formato DD/MM/YYYY
+
+FECHA ACTUAL: ${new Date().toLocaleDateString('es-ES')}
+            `;
+        }
+
+        // Procesar respuesta de IA
+        function processAIResponse(aiResponse, originalMessage) {
+            // Aquí se puede agregar lógica adicional para mejorar la respuesta
+            // Por ejemplo, agregar tarjetas de productos o formateo especial
+            return aiResponse;
+        }
+
+        // Procesamiento simulado (fallback)
+        function processMessageSimulated(message) {
+            const lowerMessage = message.toLowerCase();
+            
+            // Consultas sobre productos específicos
+            if (lowerMessage.includes('tengo') || lowerMessage.includes('hay') || lowerMessage.includes('cuánto')) {
+                handleStockQuery(message);
+            }
+            // Cálculos de precios
+            else if (lowerMessage.includes('precio') || lowerMessage.includes('cuesta') || lowerMessage.includes('por') && lowerMessage.includes('unidad')) {
+                handlePriceCalculation(message);
+            }
+            // Productos ingresados
+            else if (lowerMessage.includes('ingres') || lowerMessage.includes('hoy') || lowerMessage.includes('ayer')) {
+                handleRecentProducts(message);
+            }
+            // Stock bajo
+            else if (lowerMessage.includes('bajo') || lowerMessage.includes('poco') || lowerMessage.includes('agotand')) {
+                handleLowStock();
+            }
+            // Resumen general
+            else if (lowerMessage.includes('resumen') || lowerMessage.includes('total') || lowerMessage.includes('productos')) {
+                handleInventorySummary();
+            }
+            // Descuentos
+            else if (lowerMessage.includes('descuento') || lowerMessage.includes('%')) {
+                handleDiscountCalculation(message);
+            }
+            else {
+                addBotMessage('🤔 No entendí tu consulta. Prueba preguntando sobre productos específicos, precios, o stock disponible.');
+            }
+        }
+
+        // Manejo de consultas específicas
+        function handleStockQuery(message) {
+            const products = findProductsInMessage(message);
+            
+            if (products.length === 0) {
+                addBotMessage('No encontré productos específicos en tu consulta. ¿Sobre qué producto quieres consultar?');
+                return;
+            }
+
+            let response = '';
+            products.forEach(product => {
+                const stockClass = product.cantidad < 30 ? 'low-stock' : '';
+                response += `
+                    <div class="product-card">
+                        <div class="product-info">
+                            <div class="product-name">${product.producto}</div>
+                            <div class="product-details">${product.categoria} • Ingreso: ${formatDate(product.fecha_ingreso)}</div>
+                        </div>
+                        <div class="product-stock ${stockClass}">${product.cantidad} unidades</div>
+                    </div>
+                `;
+            });
+
+            addBotMessage(response);
+        }
+
+        function handlePriceCalculation(message) {
+            const numbers = message.match(/\d+/g);
+            if (!numbers) {
+                addBotMessage('Por favor especifica la cantidad de productos para calcular el precio.');
+                return;
+            }
+
+            const quantity = parseInt(numbers[0]);
+            const products = findProductsInMessage(message);
+            
+            if (products.length === 0) {
+                addBotMessage('Especifica el producto para calcular el precio.');
+                return;
+            }
+
+            const product = products[0];
+            const isWholesale = quantity >= 50;
+            const unitPrice = isWholesale ? product.precio_mayor : product.precio_unitario;
+            const total = quantity * unitPrice;
+
+            addBotMessage(`
+                💰 <strong>Cálculo de precio:</strong><br>
+                Producto: ${product.producto}<br>
+                Cantidad: ${quantity} unidades<br>
+                Precio ${isWholesale ? 'mayorista' : 'unitario'}: S/ ${unitPrice.toFixed(2)}<br>
+                <strong>Total: S/ ${total.toFixed(2)}</strong>
+                ${isWholesale ? '<br>🎉 Precio mayorista aplicado (50+ unidades)' : ''}
+            `);
+        }
+
+        function handleRecentProducts(message) {
+            const today = new Date().toISOString().split('T')[0];
+            const yesterday = new Date(Date.now() - 24*60*60*1000).toISOString().split('T')[0];
+            
+            let recentProducts = [];
+            
+            if (message.includes('hoy')) {
+                recentProducts = inventoryData.filter(p => p.fecha_ingreso === today);
+            } else if (message.includes('ayer')) {
+                recentProducts = inventoryData.filter(p => p.fecha_ingreso === yesterday);
+            } else {
+                // Últimos 7 días
+                const weekAgo = new Date(Date.now() - 7*24*60*60*1000);
+                recentProducts = inventoryData.filter(p => new Date(p.fecha_ingreso) >= weekAgo);
+            }
+
+            if (recentProducts.length === 0) {
+                addBotMessage('No hay productos ingresados en el período consultado.');
+                return;
+            }
+
+            let response = `📦 <strong>Productos ingresados:</strong><br>`;
+            recentProducts.forEach(product => {
+                response += `• ${product.producto} (${product.cantidad} unidades) - ${formatDate(product.fecha_ingreso)}<br>`;
+            });
+
+            addBotMessage(response);
+        }
+
+        function handleLowStock() {
+            const lowStockProducts = inventoryData.filter(p => p.cantidad < 30);
+            
+            if (lowStockProducts.length === 0) {
+                addBotMessage('✅ Todos los productos tienen stock suficiente.');
+                return;
+            }
+
+            let response = `⚠️ <strong>Productos con stock bajo:</strong><br>`;
+            lowStockProducts.forEach(product => {
+                response += `
+                    <div class="product-card">
+                        <div class="product-info">
+                            <div class="product-name">${product.producto}</div>
+                            <div class="product-details">${product.categoria}</div>
+                        </div>
+                        <div class="product-stock low-stock">${product.cantidad} unidades</div>
+                    </div>
+                `;
+            });
+
+            addBotMessage(response);
+        }
+
+        function handleInventorySummary() {
+            const totalProducts = inventoryData.length;
+            const totalValue = inventoryData.reduce((sum, p) => sum + (p.cantidad * p.precio_unitario), 0);
+            const lowStockCount = inventoryData.filter(p => p.cantidad < 30).length;
+            
+            const categories = [...new Set(inventoryData.map(p => p.categoria))];
+            
+            let response = `
+                📊 <strong>Resumen del Inventario:</strong><br><br>
+                • Total de productos: ${totalProducts}<br>
+                • Valor total: S/ ${totalValue.toFixed(2)}<br>
+                • Productos con stock bajo: ${lowStockCount}<br>
+                • Categorías: ${categories.join(', ')}<br><br>
+            `;
+
+            categories.forEach(category => {
+                const categoryProducts = inventoryData.filter(p => p.categoria === category);
+                const categoryValue = categoryProducts.reduce((sum, p) => sum + (p.cantidad * p.precio_unitario), 0);
+                response += `${category}: ${categoryProducts.length} productos (S/ ${categoryValue.toFixed(2)})<br>`;
+            });
+
+            addBotMessage(response);
+        }
+
+        function handleDiscountCalculation(message) {
+            const numbers = message.match(/\d+/g);
+            if (!numbers || numbers.length < 2) {
+                addBotMessage('Especifica la cantidad y el porcentaje de descuento. Ej: "100 unidades con 15% descuento"');
+                return;
+            }
+
+            const quantity = parseInt(numbers[0]);
+            const discount = parseInt(numbers[1]);
+            const products = findProductsInMessage(message);
+            
+            if (products.length === 0) {
+                addBotMessage('Especifica el producto para calcular el descuento.');
+                return;
+            }
+
+            const product = products[0];
+            const isWholesale = quantity >= 50;
+            const unitPrice = isWholesale ? product.precio_mayor : product.precio_unitario;
+            const subtotal = quantity * unitPrice;
+            const discountAmount = (subtotal * discount) / 100;
+            const total = subtotal - discountAmount;
+
+            addBotMessage(`
+                🎯 <strong>Cálculo con descuento:</strong><br>
+                Producto: ${product.producto}<br>
+                Cantidad: ${quantity} unidades<br>
+                Precio unitario: S/ ${unitPrice.toFixed(2)}<br>
+                Subtotal: S/ ${subtotal.toFixed(2)}<br>
+                Descuento ${discount}%: -S/ ${discountAmount.toFixed(2)}<br>
+                <strong>Total final: S/ ${total.toFixed(2)}</strong>
+            `);
+        }
+
+        // Funciones auxiliares
+        function findProductsInMessage(message) {
+            const lowerMessage = message.toLowerCase();
+            return inventoryData.filter(product => 
+                lowerMessage.includes(product.producto.toLowerCase()) ||
+                lowerMessage.includes(product.categoria.toLowerCase()) ||
+                product.producto.toLowerCase().includes(lowerMessage.split(' ')[0])
+            );
+        }
+
+        function formatDate(dateString) {
+            const date = new Date(dateString);
+            return date.toLocaleDateString('es-ES', { 
+                day: '2-digit', 
+                month: '2-digit', 
+                year: 'numeric' 
+            });
+        }
+
+        function showTypingIndicator() {
+            document.getElementById('typingIndicator').style.display = 'flex';
+            scrollToBottom();
+        }
+
+        function hideTypingIndicator() {
+            document.getElementById('typingIndicator').style.display = 'none';
+        }
+
+        function scrollToBottom() {
+            const chatMessages = document.getElementById('chatMessages');
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+
+        function updateStatus(text) {
+            document.getElementById('statusText').textContent = text;
+            setTimeout(() => {
+                document.getElementById('statusText').textContent = 'Listo';
+            }, 3000);
+        }
+    </script>
+</body>
+</html>
